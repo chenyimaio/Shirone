@@ -1,0 +1,42 @@
+name: Sync upstream
+
+# 自动跟随 LyraVoid/Shirone 的 main：把本仓的本地提交（仅本文件）rebase 到上游最新之上。
+# 只读跟随，不修改任何主题源码；冲突时失败退出，不会强推覆盖。
+
+on:
+  schedule:
+    # UTC 19:00 == 北京时间 03:00
+    - cron: "0 19 * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.SYNC_TOKEN || github.token }}
+
+      - name: Rebase onto upstream main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/LyraVoid/Shirone.git
+          git fetch upstream main
+          if git merge-base --is-ancestor upstream/main HEAD; then
+            echo "already up to date with upstream"
+            exit 0
+          fi
+          git rebase upstream/main
+          git push --force-with-lease origin HEAD:main
